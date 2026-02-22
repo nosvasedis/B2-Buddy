@@ -56,11 +56,15 @@ openRouterClient.interceptors.response.use(
     (res) => res,
     (err) => {
         const status = err?.response?.status;
+        const msg = err?.response?.data?.error?.message ?? err?.message ?? "";
         if (status === 401) {
             return Promise.reject(new Error(OPENROUTER_AUTH_ERROR_MESSAGE));
         }
         if (status === 429) {
             return Promise.reject(new Error("Rate limit reached. Please try again in a moment."));
+        }
+        if (status === 400) {
+            return Promise.reject(new Error(msg || "Request was rejected. Try again."));
         }
         return Promise.reject(err);
     }
@@ -85,7 +89,7 @@ export interface DictionaryResult {
     wordFamily: string[];
 }
 
-const callModel = async (prompt: string, model: string = TEXT_MODEL, systemInstruction: string = TEEN_COACH_INSTRUCTION, json: boolean = false) => {
+const callModel = async (prompt: string, model: string = TEXT_MODEL, systemInstruction: string = TEEN_COACH_INSTRUCTION, json: boolean = false): Promise<string> => {
     if (!OPENROUTER_API_KEY || !OPENROUTER_API_KEY.trim()) {
         throw new Error(OPENROUTER_AUTH_ERROR_MESSAGE);
     }
@@ -98,7 +102,11 @@ const callModel = async (prompt: string, model: string = TEXT_MODEL, systemInstr
             ],
             response_format: json ? { type: "json_object" } : undefined
         });
-        return response.data.choices[0].message.content;
+        const content = response?.data?.choices?.[0]?.message?.content;
+        if (content == null || typeof content !== "string") {
+            throw new Error("Invalid API response. Please try again.");
+        }
+        return content;
     } catch (error) {
         console.error(`OpenRouter Error (${model}):`, error);
         throw error;
@@ -341,27 +349,35 @@ Generate B2-level multiple-choice questions for the GVR (Grammar, Vocabulary, Re
 - Reading: short context (1-2 sentences) then choose best completion or meaning.
 Each question must have exactly 4 options. Return ONLY a valid JSON array, no markdown or explanation.`;
 
-/** Generates one batch of ECCE GVR questions (e.g. 20). Batch index used to vary topics and avoid repetition. */
+/** Generates one batch of ECCE GVR questions (e.g. 20). Uses plain-text response to avoid 400 from models that don't support response_format. */
 export const generateECCEExamBatch = async (batchIndex: number, batchSize: number = 20): Promise<ECCEQuestion[]> => {
     const startId = batchIndex * batchSize + 1;
     const prompt = `Generate exactly ${batchSize} Michigan ECCE GVR questions for this batch (IDs ${startId} to ${startId + batchSize - 1}).
 Mix: about 40% GRAMMAR, 40% VOCABULARY, 20% READING. Vary topics (work, travel, environment, education, technology, health, etc.).
-Return a JSON array of objects. Each object must have:
+Return ONLY a valid JSON array of objects. No markdown, no code fence, no explanation. Each object must have:
 - "id": number (${startId} to ${startId + batchSize - 1})
 - "type": "GRAMMAR" | "VOCABULARY" | "READING"
 - "question": string (clear stem; use ________ for gap if completion)
 - "options": string array of exactly 4 options
 - "correctAnswer": string (exactly one of the options)
 No duplicate questions. Make distractors plausible.`;
-    const res = await callModel(prompt, TEXT_MODEL, ECCE_EXAM_SYSTEM, true);
-    const raw = JSON.parse(res || "[]");
-    return Array.isArray(raw) ? raw.map((q: any) => ({
-        id: Number(q.id) || startId + raw.indexOf(q),
+    const rawText = await callModel(prompt, TEXT_MODEL, ECCE_EXAM_SYSTEM, false);
+    const jsonString = extractJsonFromResponse(rawText || "");
+    let parsed: any;
+    try {
+        parsed = JSON.parse(jsonString || "[]");
+    } catch {
+        return [];
+    }
+    const arr = Array.isArray(parsed) ? parsed : (parsed?.questions ?? parsed?.items ?? []);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((q: any, idx: number) => ({
+        id: Number(q.id) || startId + idx,
         type: ['GRAMMAR', 'VOCABULARY', 'READING'].includes(q.type) ? q.type : 'GRAMMAR',
         question: String(q.question || '').trim(),
         options: Array.isArray(q.options) ? q.options.map((o: any) => String(o)) : [],
         correctAnswer: String(q.correctAnswer || '').trim()
-    })).filter((q: ECCEQuestion) => q.question && q.options.length >= 2) : [];
+    })).filter((q: ECCEQuestion) => q.question && q.options.length >= 2);
 };
 
 /** Generates a full ECCE mock exam (e.g. 100 questions) in batches to get diverse, non-repeating items. */
