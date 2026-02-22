@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { evaluateSpeakingSession, generateSpeakingAssets } from '../services/openRouterService';
-import { getExaminerFollowUp } from '../data/speakingPrompts';
+import { evaluateSpeakingSession, generateSpeakingAssets, generateExaminerGreeting, generateExaminerTurn } from '../services/openRouterService';
 import MarkdownRenderer from './MarkdownRenderer';
 import { UserStats, SpeakingScore } from '../types';
 import { playSound } from '../services/soundService';
@@ -42,6 +41,7 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
     const [report, setReport] = useState<{ report: string, score: SpeakingScore } | null>(null);
     const [timeLeft, setTimeLeft] = useState(0);
     const [isExaminerSpeaking, setIsExaminerSpeaking] = useState(false);
+    const [isExaminerThinking, setIsExaminerThinking] = useState(false);
 
     // Refs for audio and live session
     const audioContextRef = useRef<AudioContext | null>(null);
@@ -84,6 +84,14 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
         }
     };
 
+    const getTopicContext = (): string => {
+        if (!assets) return activePart === 'PART1' ? 'Personal information and interests.' : 'General topic.';
+        if (activePart === 'PART2' && assets.topic) return `Photo comparison: ${assets.topic}. ${assets.question || ''}`;
+        if (activePart === 'PART3' && (assets.centralQuestion || assets.points)) return `Mind map: ${assets.centralQuestion || ''}. Points: ${(assets.points || []).join(', ')}`;
+        if (activePart === 'PART4') return 'Discussion following the collaborative task.';
+        return assets.topic || 'General conversation.';
+    };
+
     const startTest = async () => {
         setState('EXAM_LIVE');
         setTimeLeft(EXAM_RUBRIC[activePart].duration);
@@ -91,7 +99,15 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
         setTranscript("");
         examinerTurnIndexRef.current = 0;
 
-        const greeting = `Hello! I am your examiner today for the B2 First Speaking test, ${activePart}. Are you ready to begin?`;
+        setIsExaminerThinking(true);
+        let greeting: string;
+        try {
+            greeting = await generateExaminerGreeting(activePart, getTopicContext());
+        } catch (e) {
+            console.warn('Examiner greeting failed, using fallback', e);
+            greeting = "Hello. I'm your examiner today. Are you ready to begin?";
+        }
+        setIsExaminerThinking(false);
         speakText(greeting);
     };
 
@@ -134,10 +150,8 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
             const studentSpeech = event.results[0][0].transcript;
             transcriptRef.current += `\nCandidate: ${studentSpeech}`;
             setTranscript(transcriptRef.current);
-
-            const response = getExaminerFollowUp(activePart, examinerTurnIndexRef.current);
             examinerTurnIndexRef.current += 1;
-            speakText(response);
+            handleExaminerReply(studentSpeech);
         };
 
         recognition.onerror = (event: any) => {
@@ -147,9 +161,20 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
         recognition.start();
     };
 
-    const getExaminerResponse = async (input: string) => {
-        // Deprecated: Logic moved to handle directly in recognition.onresult
-        return "";
+    const FALLBACK_EXAMINER_LINE = "Thank you. Could you say a bit more about that?";
+
+    const handleExaminerReply = async (studentInput: string) => {
+        setIsExaminerThinking(true);
+        try {
+            const topic = getTopicContext();
+            const response = await generateExaminerTurn(activePart, topic, transcriptRef.current, studentInput);
+            setIsExaminerThinking(false);
+            speakText(response);
+        } catch (e) {
+            console.warn('Examiner turn failed, using fallback', e);
+            setIsExaminerThinking(false);
+            speakText(FALLBACK_EXAMINER_LINE);
+        }
     };
 
     const finishExam = async () => {
@@ -216,7 +241,8 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
                 <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-10 text-center shadow-2xl border border-slate-100 dark:border-slate-700">
                     <div className="text-6xl mb-6">🎙️</div>
                     <h2 className="text-3xl font-black text-slate-800 dark:text-white mb-4">Ready, {stats.name}?</h2>
-                    <p className="text-slate-500 mb-8 text-lg italic">"Please find a quiet place and put on your headphones. The examiner is waiting."</p>
+                    <p className="text-slate-500 mb-4 text-lg italic">"Find a quiet place and put on your headphones."</p>
+                    <p className="text-indigo-600 dark:text-indigo-400 font-medium text-sm mb-8">The examiner is AI-powered and will respond to what you say.</p>
                     <div className="flex gap-4 justify-center">
                         <button onClick={() => setState('MENU')} className="px-8 py-4 rounded-2xl font-bold text-slate-500 hover:bg-slate-50 transition-colors">Cancel</button>
                         <button onClick={startTest} className="px-12 py-4 bg-indigo-600 text-white rounded-2xl font-black text-xl shadow-xl hover:scale-105 active:scale-95 transition-all">ENTER ROOM</button>
@@ -244,8 +270,10 @@ const SpeakingCoach: React.FC<SpeakingCoachProps> = ({ onSessionComplete, onUpda
                 <div className="flex-1 relative flex flex-col items-center justify-center p-8">
                     {/* Examiner Side */}
                     <div className="mb-12 flex flex-col items-center">
-                        <PulsingOrb active={isExaminerSpeaking} />
-                        <p className="mt-4 text-white/50 font-black uppercase tracking-widest text-xs">Examiner</p>
+                        <PulsingOrb active={isExaminerSpeaking || isExaminerThinking} />
+                        <p className="mt-4 text-white/50 font-black uppercase tracking-widest text-xs">
+                            {isExaminerThinking ? 'Examiner is thinking...' : 'Examiner'}
+                        </p>
                     </div>
 
                     {/* Task Visuals */}

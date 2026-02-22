@@ -33,7 +33,11 @@ Your tone is high-energy, encouraging, and clear.
 - Focus on practical Michigan ECCE 'Exam Hacks'.
 - Calibrate all vocabulary strictly to CEFR B2 level.`;
 
-const B2_EXAMINER_INSTRUCTION = `You are a professional Michigan ECCE Examiner. Use standard examiner phrasing. Be polite but formal.`;
+const B2_EXAMINER_INSTRUCTION = `You are a professional B2 First / Michigan ECCE Speaking examiner. You conduct the test in real time.
+- Be natural and conversational. React to what the candidate actually said.
+- Use standard examiner phrasing: polite, clear, brief (1–2 sentences).
+- Do NOT repeat generic scripts. Ask relevant follow-ups based on their answer.
+- Part 1: Personal questions; Part 2: Photo comparison; Part 3: Mind map discussion; Part 4: Deeper discussion.`;
 
 const openRouterClient = axios.create({
     baseURL: BASE_URL,
@@ -260,20 +264,28 @@ export const generateSpeakingAssets = async (part: string): Promise<any> => {
     return { topic: "General Conversation" };
 };
 
-export const generateExaminerTurn = async (part: string, topic: string, history: string, studentInput: string): Promise<string> => {
-    const prompt = `You are a professional B2 First Examiner. 
-    Session: ${part}
-    Topic: ${topic}
-    History: ${history}
-    Student just said: "${studentInput}"
-    
-    Respond as the examiner. Keep it brief (1-2 sentences). 
-    If Part 1: Ask a related personal question.
-    If Part 2: Ask them to move on to the second photo or wrap up their comparison.
-    If Part 3: Encourage them to consider another point on the mind map.
-    If Part 4: Ask a deep follow-up question.`;
+/** Generate the examiner's opening line for this part (AI, so it fits the task). */
+export const generateExaminerGreeting = async (part: string, contextSummary: string): Promise<string> => {
+    const prompt = `You are the B2 Speaking examiner. This is ${part}.
+Context: ${contextSummary}
+Say ONE short greeting (1–2 sentences): introduce yourself as the examiner, then ask if the candidate is ready to begin. Be natural and warm. Do not list instructions.`;
+    const text = await callModel(prompt, TEXT_MODEL, B2_EXAMINER_INSTRUCTION);
+    return (text || "Hello. I'm your examiner today. Are you ready to begin?").trim();
+};
 
-    return await callModel(prompt, TEXT_MODEL, "B2 Examiner persona");
+/** Generate the examiner's next turn based on what the candidate just said (fully interactive). */
+export const generateExaminerTurn = async (part: string, topic: string, history: string, studentInput: string): Promise<string> => {
+    const prompt = `Session: ${part}
+Topic/task: ${topic}
+
+Conversation so far:
+${history}
+
+Candidate just said: "${studentInput}"
+
+Respond as the examiner. React to what they actually said. One or two short sentences. Ask a relevant follow-up or move the task on naturally.`;
+    const text = await callModel(prompt, TEXT_MODEL, B2_EXAMINER_INSTRUCTION);
+    return (text || "Thank you. Could you tell me a bit more about that?").trim();
 };
 
 export const checkExerciseAnswer = async (question: string, answer: string, context: string, target?: string, options?: string[]): Promise<string> => {
