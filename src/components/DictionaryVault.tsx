@@ -45,6 +45,7 @@ const DictionaryVault: React.FC<DictionaryVaultProps> = ({ stats, onUpdateStats,
     const [reviewFeedback, setReviewFeedback] = useState<Record<number, FeedbackResult>>({});
     const [checkingReviewId, setCheckingReviewId] = useState<number | null>(null);
     const [reviewLoading, setReviewLoading] = useState(false);
+    const [searchError, setSearchError] = useState<string | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
     const aiCacheRef = useRef<Map<string, DictionaryResult>>(new Map());
 
@@ -86,9 +87,10 @@ const DictionaryVault: React.FC<DictionaryVaultProps> = ({ stats, onUpdateStats,
                 const res = await lookupWordWithFallback(initialSearchTerm);
                 if (res) {
                     setResult(res);
-                    // Check if already in inventory
                     const existing = (stats.vocabItems || []).find(v => v.word.toLowerCase().trim() === initialSearchTerm.toLowerCase().trim());
-                    if (existing) { setCollected(true); }
+                    if (existing) setCollected(true);
+                } else {
+                    setSearchError(`Couldn't find "${initialSearchTerm}". Try another spelling or check your connection.`);
                 }
                 setLoading(false);
                 if (onClearInitialSearch) onClearInitialSearch();
@@ -102,6 +104,7 @@ const DictionaryVault: React.FC<DictionaryVaultProps> = ({ stats, onUpdateStats,
         if (!searchTerm.trim()) return;
         setLoading(true);
         setResult(null);
+        setSearchError(null);
         setCollected(false);
         setShowConfetti(false);
         setShowToast(false);
@@ -110,7 +113,12 @@ const DictionaryVault: React.FC<DictionaryVaultProps> = ({ stats, onUpdateStats,
         const existing = (stats.vocabItems || []).find(v => v.word.toLowerCase().trim() === cleanTerm);
         if (existing) setCollected(true);
         const res = await lookupWordWithFallback(searchTerm);
-        if (res) { setResult(res); if(stats.soundEnabled) playSound('pop'); } else { alert("The spell failed. Could not find this word."); }
+        if (res) {
+            setResult(res);
+            if (stats.soundEnabled) playSound('pop');
+        } else {
+            setSearchError(`Couldn't find "${searchTerm.trim()}". Try another spelling or check your connection.`);
+        }
         setLoading(false);
     };
 
@@ -261,10 +269,17 @@ const DictionaryVault: React.FC<DictionaryVaultProps> = ({ stats, onUpdateStats,
                         <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-400 to-purple-500 rounded-[2rem] blur-xl opacity-20 group-hover:opacity-40 transition-opacity duration-500"></div>
                         <div className="relative bg-white dark:bg-slate-900 rounded-[2rem] shadow-xl border-4 border-fuchsia-100 dark:border-fuchsia-900 flex items-center p-2 transition-transform group-hover:scale-[1.01]">
                             <div className="pl-4 pr-2 md:pl-6 md:pr-4 text-2xl md:text-3xl animate-pulse">🔮</div>
-                            <input ref={inputRef} type="text" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Enter word to analyze..." className="flex-1 bg-transparent text-lg md:text-2xl font-bold text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 outline-none h-14 md:h-16 min-w-0" />
+                            <input ref={inputRef} type="text" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setSearchError(null); }} placeholder="Enter word to analyze..." className="flex-1 bg-transparent text-lg md:text-2xl font-bold text-slate-800 dark:text-white placeholder-slate-300 dark:placeholder-slate-600 outline-none h-14 md:h-16 min-w-0" />
                             <button type="submit" disabled={loading} className="bg-fuchsia-500 hover:bg-fuchsia-600 text-white rounded-2xl px-6 md:px-8 py-3 md:py-4 font-black uppercase tracking-widest shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:scale-100 text-xs md:text-sm shrink-0">{loading ? '...' : 'Go'}</button>
                         </div>
                     </form>
+
+                    {!loading && searchError && (
+                        <div className="w-full max-w-2xl mx-auto mt-6 p-6 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-700 rounded-2xl text-center">
+                            <p className="text-amber-800 dark:text-amber-200 font-medium mb-2">🔮 {searchError}</p>
+                            <button type="button" onClick={() => { setSearchError(null); inputRef.current?.focus(); }} className="text-amber-600 dark:text-amber-400 font-bold text-sm hover:underline">Try another word</button>
+                        </div>
+                    )}
                     
                     {result && !loading && (
                         <div className="w-full max-w-4xl mx-auto animate-enter relative mt-4 px-1">

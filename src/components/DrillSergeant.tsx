@@ -46,9 +46,11 @@ const DrillSergeant: React.FC<DrillSergeantProps> = ({ stats, onUpdateStats }) =
     const [checking, setChecking] = useState(false);
     const [score, setScore] = useState(0);
     const [drillMistakes, setDrillMistakes] = useState<string[]>([]);
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     const handleStart = async (type: DrillType, forceNew: boolean = false) => {
         if (stats.soundEnabled) playSound('click');
+        setLoadError(null);
         setDrillType(type);
         setMode('GAME');
         setScore(0);
@@ -71,17 +73,18 @@ const DrillSergeant: React.FC<DrillSergeantProps> = ({ stats, onUpdateStats }) =
             const qs = await generateDrillExercises(type);
             if (qs.length > 0) {
                 setQuestions(qs);
-                // Save Cache
                 const newStats = { ...stats };
                 if (!newStats.drillCache) newStats.drillCache = {};
                 newStats.drillCache[type] = qs;
                 onUpdateStats(newStats);
             } else {
-                alert("Drill Sergeant is on break. Try again.");
+                setLoadError("Drill Sergeant is on break. Try again.");
                 setMode('MENU');
             }
         } catch (e) {
             console.error(e);
+            const msg = e instanceof Error ? e.message : "Could not load drills. Try again.";
+            setLoadError(msg);
             setMode('MENU');
         } finally {
             setLoading(false);
@@ -208,6 +211,15 @@ const DrillSergeant: React.FC<DrillSergeantProps> = ({ stats, onUpdateStats }) =
                         </p>
                      </div>
                 </div>
+
+                {loadError && (
+                    <div className="mb-6 p-4 bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-200 dark:border-amber-700 rounded-2xl text-amber-800 dark:text-amber-200">
+                        <p className="font-medium text-sm">{loadError}</p>
+                        {loadError.includes('API key') && (
+                            <p className="text-xs mt-2 opacity-80">Set VITE_OPENROUTER_API_KEY in your build environment (e.g. .env) and rebuild.</p>
+                        )}
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {[

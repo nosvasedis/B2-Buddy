@@ -11,6 +11,7 @@ import {
     UserStats,
     DrillQuestion,
     ECCEQuestion,
+    LessonContent,
     SpeakingScore
 } from "../types";
 import { PART2_PHOTO_PAIRS, PART3_MIND_MAPS } from "../data/speakingPrompts";
@@ -44,6 +45,23 @@ const openRouterClient = axios.create({
     }
 });
 
+/** User-friendly error when API key is missing or rejected (401). */
+export const OPENROUTER_AUTH_ERROR_MESSAGE = "OpenRouter API key is missing or invalid. Set VITE_OPENROUTER_API_KEY when building the app.";
+
+openRouterClient.interceptors.response.use(
+    (res) => res,
+    (err) => {
+        const status = err?.response?.status;
+        if (status === 401) {
+            return Promise.reject(new Error(OPENROUTER_AUTH_ERROR_MESSAGE));
+        }
+        if (status === 429) {
+            return Promise.reject(new Error("Rate limit reached. Please try again in a moment."));
+        }
+        return Promise.reject(err);
+    }
+);
+
 export interface CoachingBrief {
     greeting: string;
     mood: "motivated" | "warning" | "celebratory" | "neutral";
@@ -64,6 +82,9 @@ export interface DictionaryResult {
 }
 
 const callModel = async (prompt: string, model: string = TEXT_MODEL, systemInstruction: string = TEEN_COACH_INSTRUCTION, json: boolean = false) => {
+    if (!OPENROUTER_API_KEY || !OPENROUTER_API_KEY.trim()) {
+        throw new Error(OPENROUTER_AUTH_ERROR_MESSAGE);
+    }
     try {
         const response = await openRouterClient.post("/chat/completions", {
             model: model,
@@ -80,23 +101,68 @@ const callModel = async (prompt: string, model: string = TEXT_MODEL, systemInstr
     }
 };
 
-export const generateLessonContent = async (topic: string, type: 'GRAMMAR' | 'VOCABULARY', profile?: LearningProfile) => {
+/** Strip markdown code fences so we can parse JSON from model output. */
+function extractJsonFromResponse(raw: string): string {
+    const s = (raw || '').trim();
+    const jsonBlock = /^```(?:json)?\s*([\s\S]*?)```\s*$/m.exec(s);
+    if (jsonBlock) return jsonBlock[1].trim();
+    return s;
+}
+
+/** Normalize API lesson shape to LessonContent (handles "correct" vs "correctAnswer", missing fields). */
+function normalizeLessonContent(raw: any, topic: string): LessonContent {
+    const exercises: Exercise[] = Array.isArray(raw.exercises)
+        ? raw.exercises.map((ex: any, idx: number) => ({
+            id: typeof ex.id === 'number' ? ex.id : idx,
+            type: 'multiple_choice' as const,
+            question: String(ex.question ?? ex.prompt ?? ''),
+            options: Array.isArray(ex.options) ? ex.options.map((o: any) => String(o)) : [],
+            correctAnswer: String(ex.correctAnswer ?? ex.correct ?? '').trim()
+        })).filter((ex: Exercise) => ex.question && (ex.options?.length ?? 0) >= 2)
+        : [];
+    const examples: string[] = Array.isArray(raw.examples)
+        ? raw.examples.map((e: any) => (typeof e === 'string' ? e : String(e)))
+        : [];
+    return {
+        title: String(raw.title ?? topic).trim() || topic,
+        emoji: String(raw.emoji ?? '📚').trim(),
+        theoryMarkdown: String(raw.theoryMarkdown ?? raw.theory ?? '').trim() || `*Lesson: ${topic}*`,
+        examples,
+        exercises,
+        imageUrl: raw.imageUrl,
+        targetWords: Array.isArray(raw.targetWords) ? raw.targetWords : undefined
+    };
+}
+
+export const generateLessonContent = async (topic: string, type: 'GRAMMAR' | 'VOCABULARY', profile?: LearningProfile): Promise<LessonContent> => {
     const prompt = type === 'GRAMMAR'
         ? `Create a MEGA B2 Level Grammar lesson for: "${topic}". 
-           Return JSON with:
-           - 'title': (string)
-           - 'emoji': (string)
-           - 'theoryMarkdown': (comprehensive markdown explanation)
-           - 'examples': (array of 4 strings in format "**Label (Context)**: Sentence")
-           - 'exercises': (array of 4 MCQs with id, question, options, correctAnswer).`
+           Return ONLY valid JSON (no markdown, no code block, no explanation) with:
+           - "title": string
+           - "emoji": string (single emoji)
+           - "theoryMarkdown": string (markdown explanation)
+           - "examples": array of 4 strings (format "**Label (Context)**: Sentence")
+           - "exercises": array of 4 objects with "id" (number), "question" (string), "options" (array of 4 strings), "correctAnswer" (string, one of the options).`
         : `Create a MEGA B2 Level Vocabulary lesson for: "${topic}". Focus on collocations. 
-           Return JSON with:
-           - 'title': (string)
-           - 'emoji': (string)
-           - 'theoryMarkdown': (comprehensive markdown explanation)
-           - 'examples': (array of 4 strings in format "**Label (Context)**: Sentence")
-           - 'exercises': (array of 4 MCQs with id, question, options, correctAnswer).`;
-    return await callModel(prompt, TEXT_MODEL, TEEN_COACH_INSTRUCTION, true);
+           Return ONLY valid JSON (no markdown, no code block, no explanation) with:
+           - "title": string
+           - "emoji": string (single emoji)
+           - "theoryMarkdown": string (markdown explanation)
+           - "examples": array of 4 strings (format "**Label (Context)**: Sentence")
+           - "exercises": array of 4 objects with "id" (number), "question" (string), "options" (array of 4 strings), "correctAnswer" (string, one of the options).`;
+    const raw = await callModel(prompt, TEXT_MODEL, TEEN_COACH_INSTRUCTION, true);
+    const jsonString = extractJsonFromResponse(raw || '');
+    let parsed: any;
+    try {
+        parsed = JSON.parse(jsonString);
+    } catch (e) {
+        console.error('Lesson JSON parse error:', e);
+        throw new Error('The lesson response was invalid. Please try again.');
+    }
+    if (!parsed || typeof parsed !== 'object') {
+        throw new Error('The lesson response was invalid. Please try again.');
+    }
+    return normalizeLessonContent(parsed, topic);
 };
 
 export const generateCoachingBrief = async (stats: UserStats): Promise<CoachingBrief> => {
@@ -135,12 +201,34 @@ export const evaluateSpeakingSession = async (transcript: string, part: string):
     return JSON.parse(res || "{}");
 };
 
+function normalizeDictionaryResult(raw: any, searchedWord: string): DictionaryResult | null {
+    const word = String(raw?.word ?? searchedWord).trim();
+    const definition = String(raw?.definition ?? raw?.meaning ?? '').trim();
+    if (!word || !definition) return null;
+    return {
+        word,
+        phonetic: String(raw?.phonetic ?? '').trim(),
+        definition,
+        partOfSpeech: String(raw?.partOfSpeech ?? raw?.type ?? '').trim(),
+        cefr: String(raw?.cefr ?? 'B2').trim(),
+        synonyms: Array.isArray(raw?.synonyms) ? raw.synonyms.map((s: any) => String(s)) : [],
+        antonyms: Array.isArray(raw?.antonyms) ? raw.antonyms.map((a: any) => String(a)) : [],
+        examples: Array.isArray(raw?.examples) ? raw.examples.map((x: any) => String(x)) : [],
+        wordFamily: Array.isArray(raw?.wordFamily) ? raw.wordFamily.map((w: any) => String(w)) : []
+    };
+}
+
 export const lookupWord = async (word: string): Promise<DictionaryResult | null> => {
     try {
-        const prompt = `Define "${word}" for B2. JSON with word, phonetic, definition, partOfSpeech, cefr, synonyms, antonyms, examples, wordFamily.`;
-        const res = await callModel(prompt, TEXT_MODEL, TEEN_COACH_INSTRUCTION, true);
-        return JSON.parse(res || "{}");
-    } catch (e) { return null; }
+        const prompt = `Define "${word}" for B2 level. Return ONLY valid JSON (no markdown) with: word, phonetic, definition, partOfSpeech, cefr, synonyms (array), antonyms (array), examples (array), wordFamily (array).`;
+        const raw = await callModel(prompt, TEXT_MODEL, TEEN_COACH_INSTRUCTION, true);
+        const jsonString = extractJsonFromResponse(raw || '');
+        const parsed = JSON.parse(jsonString || '{}');
+        return normalizeDictionaryResult(parsed, word.trim());
+    } catch (e) {
+        console.warn('Lookup word failed:', e);
+        return null;
+    }
 };
 
 export const getDailyWord = async (): Promise<string> => {

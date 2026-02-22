@@ -179,6 +179,7 @@ const UniversalTutor: React.FC<UniversalTutorProps> = ({
     const [selectedTopic, setSelectedTopic] = useState<{id: string, title: string, level: string} | null>(null);
     const [lessonData, setLessonData] = useState<LessonContent | null>(null);
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [activeTab, setActiveTab] = useState<'LEARN' | 'PRACTICE'>('LEARN');
     
     const [exerciseAnswers, setExerciseAnswers] = useState<Record<number, string>>({});
@@ -200,25 +201,24 @@ const UniversalTutor: React.FC<UniversalTutorProps> = ({
         
         if (!forceRegenerate && lessonCache[topic.id]) {
             setLessonData(lessonCache[topic.id]);
+            setLoadError(null);
             if(soundEnabled) playSound('pop');
             return;
         }
 
         setLessonData(null);
+        setLoadError(null);
         setLoading(true);
-        
+
         try {
-            const jsonString = await generateLessonContent(topic.title, type, profile);
-            if (jsonString) {
-                const parsed = JSON.parse(jsonString) as LessonContent;
-                setLessonData(parsed);
-                onSaveLesson(topic.id, parsed);
-                if(soundEnabled) playSound('pop');
-            } else {
-                throw new Error("Empty response");
-            }
+            const parsed = await generateLessonContent(topic.title, type, profile);
+            setLessonData(parsed);
+            onSaveLesson(topic.id, parsed);
+            if (soundEnabled) playSound('pop');
         } catch (e) {
             console.error(e);
+            const message = e instanceof Error ? e.message : 'Could not generate lesson. Check your connection and try again.';
+            setLoadError(message);
         } finally {
             setLoading(false);
         }
@@ -620,12 +620,14 @@ const UniversalTutor: React.FC<UniversalTutorProps> = ({
 
                 {/* ERROR/EMPTY STATE */}
                 {!loading && !lessonData && selectedTopic && (
-                    <div className="flex flex-col items-center justify-center h-64 text-center bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-lg border-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <div className="flex flex-col items-center justify-center min-h-64 text-center bg-white dark:bg-slate-800 rounded-[2rem] p-8 shadow-lg border-2 border-dashed border-slate-200 dark:border-slate-700">
                         <div className="text-4xl mb-4">😕</div>
-                        <h3 className="font-bold text-slate-800 dark:text-white mb-2">Content Not Found</h3>
-                        <p className="text-slate-500 text-sm mb-6">The lesson could not be loaded. Please try generating again.</p>
+                        <h3 className="font-bold text-slate-800 dark:text-white mb-2">Lesson could not be generated</h3>
+                        <p className="text-slate-500 text-sm mb-6 max-w-md">
+                            {loadError || 'The lesson could not be loaded. Please try again.'}
+                        </p>
                         <button onClick={handleRegenerate} className={`px-6 py-3 rounded-xl bg-${activeThemeColor}-500 text-white font-bold shadow-lg hover:bg-${activeThemeColor}-600 transition-all`}>
-                            Retry Generation
+                            Retry generation
                         </button>
                     </div>
                 )}
