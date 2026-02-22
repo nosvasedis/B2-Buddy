@@ -1,0 +1,8 @@
+{
+  "name": "B2 Buddy",
+  "description": "An AI-powered tuition companion for English B2 exam preparation featuring Live Speaking practice, Visual Writing aids, and Homework analysis.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
