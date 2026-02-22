@@ -7,6 +7,14 @@ export default defineConfig({
   define: {
     // This ensures process.env is polyfilled for the libraries that might need it,
     // though we prefer import.meta.env in Vite.
-    'process.env': {} 
+    'process.env': {}
+  },
+  server: {
+    port: 5173,
+    hmr: {
+      protocol: 'ws',
+      host: 'localhost',
+      port: 5173
+    }
   }
 })
