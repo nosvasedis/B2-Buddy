@@ -2,8 +2,16 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
+const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
+if (!apiKey || typeof apiKey !== "string" || apiKey.length < 10) {
+  throw new Error(
+    "B2_BUDDY_CONFIG_MISSING: Firebase is not configured. " +
+    "Set VITE_FIREBASE_API_KEY (and other VITE_FIREBASE_* vars) in .env or .env.production, then run 'npm run build' again before deploying."
+  );
+}
+
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,

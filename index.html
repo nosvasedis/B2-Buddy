@@ -1,43 +1,31 @@
-
 <!DOCTYPE html>
 <html lang="en">
-  <head>
+
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#4f46e5" />
     <meta name="description" content="B2 Buddy - AI English Tutor" />
     <title>B2 Buddy - English Prep</title>
-    
+
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
-    
-    <!-- IOS Support -->
+
+    <!-- PWA / mobile web app -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <!-- IOS Support (legacy) -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="B2 Buddy" />
-    
+
     <!-- Icons -->
     <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/4712/4712009.png" />
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/4712/4712009.png" />
 
-    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap" rel="stylesheet">
-    
-    <!-- TAILWIND CDN (Required for Chat Preview) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            fontFamily: {
-              sans: ['Inter', 'sans-serif'],
-              game: ['Fredoka', 'sans-serif'],
-              serif: ['Merriweather', 'serif'],
-            }
-          }
-        }
-      }
-    </script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Fredoka:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,400&display=swap"
+        rel="stylesheet">
+
 
     <!-- Custom Styles & Animations -->
     <style>
@@ -47,7 +35,13 @@
             overscroll-behavior-y: none;
         }
 
-        h1, h2, h3, h4, h5, h6, .font-game {
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6,
+        .font-game {
             font-family: 'Fredoka', sans-serif;
         }
 
@@ -59,6 +53,7 @@
         .scrollbar-hide::-webkit-scrollbar {
             display: none;
         }
+
         .scrollbar-hide {
             -ms-overflow-style: none;
             scrollbar-width: none;
@@ -68,14 +63,17 @@
         .custom-scrollbar::-webkit-scrollbar {
             width: 6px;
         }
+
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: rgba(0,0,0,0.02);
+            background: rgba(0, 0, 0, 0.02);
             border-radius: 10px;
         }
+
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: rgba(99, 102, 241, 0.2);
             border-radius: 10px;
         }
+
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: rgba(99, 102, 241, 0.4);
         }
@@ -109,98 +107,161 @@
         .animate-bounce-in {
             animation: bounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
         }
-        
+
         .animate-app-fade-in {
             animation: appFadeIn 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
         }
 
         @keyframes appFadeIn {
-            0% { opacity: 0; transform: scale(0.98) translateY(10px); }
-            100% { opacity: 1; transform: scale(1) translateY(0); }
+            0% {
+                opacity: 0;
+                transform: scale(0.98) translateY(10px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
         }
 
         @keyframes slideUp {
-            from { transform: translateY(20px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
+            from {
+                transform: translateY(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
         }
 
         @keyframes slideDown {
-            from { transform: translateY(0); opacity: 1; }
-            to { transform: translateY(20px); opacity: 0; }
+            from {
+                transform: translateY(0);
+                opacity: 1;
+            }
+
+            to {
+                transform: translateY(20px);
+                opacity: 0;
+            }
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+            from {
+                opacity: 0;
+            }
+
+            to {
+                opacity: 1;
+            }
         }
 
         @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; }
+            from {
+                opacity: 1;
+            }
+
+            to {
+                opacity: 0;
+            }
         }
 
         @keyframes scaleIn {
-            from { transform: scale(0.9); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
         }
 
         @keyframes slideInRight {
-            from { transform: translateX(20px); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
+            from {
+                transform: translateX(20px);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
         }
 
         @keyframes bounceIn {
-            0% { opacity: 0; transform: scale(0.3); }
-            50% { opacity: 1; transform: scale(1.05); }
-            70% { transform: scale(0.9); }
-            100% { transform: scale(1); }
+            0% {
+                opacity: 0;
+                transform: scale(0.3);
+            }
+
+            50% {
+                opacity: 1;
+                transform: scale(1.05);
+            }
+
+            70% {
+                transform: scale(0.9);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
 
         @keyframes shimmer {
-            0% { transform: translateX(-100%); }
-            100% { transform: translateX(100%); }
+            0% {
+                transform: translateX(-100%);
+            }
+
+            100% {
+                transform: translateX(100%);
+            }
         }
 
         @keyframes scan {
-            0% { top: 0; opacity: 0; }
-            10% { opacity: 1; }
-            90% { opacity: 1; }
-            100% { top: 100%; opacity: 0; }
+            0% {
+                top: 0;
+                opacity: 0;
+            }
+
+            10% {
+                opacity: 1;
+            }
+
+            90% {
+                opacity: 1;
+            }
+
+            100% {
+                top: 100%;
+                opacity: 0;
+            }
         }
 
         .pb-safe {
             padding-bottom: env(safe-area-inset-bottom);
         }
     </style>
-
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.84.0",
-    "vite": "https://aistudiocdn.com/vite@^7.2.4",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1",
-    "react-dom": "https://aistudiocdn.com/react-dom@^19.2.0"
-  }
-}
-</script>
 </head>
-  <body class="bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+
+<body class="bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
     <div id="root"></div>
     <script type="module" src="/src/index.tsx"></script>
     <script>
         if ('serviceWorker' in navigator) {
-          window.addEventListener('load', () => {
-            if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
-                navigator.serviceWorker.register('/sw.js')
-                  .then(reg => console.log('SW registered'))
-                  .catch(err => console.log('SW registration skipped (dev mode or path issue):', err.message));
-            }
-          });
+            window.addEventListener('load', () => {
+                if (window.location.protocol === 'https:' || window.location.hostname === 'localhost') {
+                    navigator.serviceWorker.register('/sw.js')
+                        .then(reg => console.log('SW registered'))
+                        .catch(err => console.log('SW registration skipped (dev mode or path issue):', err.message));
+                }
+            });
         }
     </script>
-  </body>
+</body>
+
 </html>

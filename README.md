@@ -254,31 +254,49 @@ Replace `YOUR_PROJECT_ID` with the ID you see in [Firebase Console](https://cons
 
 ---
 
-### Step 6: Build the app with your OpenRouter key
+### Step 6: Build the app with your API keys and Firebase config
 
-The key must be set **in the same terminal session** where you run `npm run build`. Replace `your_actual_key_here` with the key you copied from OpenRouter.
+**Important:** The app needs **both** your OpenRouter key and your **Firebase config** (API key, project ID, etc.) at **build time**. If you deploy a build that was run without these, the live site will show a white screen and the console will show `Firebase: Error (auth/invalid-api-key)`.
+
+**Easiest:** Create a `.env.production` file (copy from `.env.example`) and fill in all `VITE_*` variables. Then run `npm run build`. Do not commit `.env.production` (it should stay in `.gitignore`).
+
+**Or set vars in the terminal** (same session as `npm run build`). Replace placeholders with your real values.
 
 **On Windows (Command Prompt or PowerShell):**
 
 ```bash
 set VITE_OPENROUTER_API_KEY=your_actual_key_here
+set VITE_FIREBASE_API_KEY=your_firebase_api_key
+set VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+set VITE_FIREBASE_PROJECT_ID=your_project_id
+set VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+set VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+set VITE_FIREBASE_APP_ID=your_app_id
 npm run build
 ```
 
 **On Windows (PowerShell, if the line above doesn’t work):**
 
 ```powershell
-$env:VITE_OPENROUTER_API_KEY="your_actual_key_here"; npm run build
+$env:VITE_OPENROUTER_API_KEY="your_actual_key_here"; $env:VITE_FIREBASE_API_KEY="..."; $env:VITE_FIREBASE_AUTH_DOMAIN="..."; $env:VITE_FIREBASE_PROJECT_ID="..."; $env:VITE_FIREBASE_STORAGE_BUCKET="..."; $env:VITE_FIREBASE_MESSAGING_SENDER_ID="..."; $env:VITE_FIREBASE_APP_ID="..."; npm run build
 ```
 
 **On Mac or Linux:**
 
 ```bash
 export VITE_OPENROUTER_API_KEY=your_actual_key_here
+export VITE_FIREBASE_API_KEY=...
+export VITE_FIREBASE_AUTH_DOMAIN=...
+export VITE_FIREBASE_PROJECT_ID=...
+export VITE_FIREBASE_STORAGE_BUCKET=...
+export VITE_FIREBASE_MESSAGING_SENDER_ID=...
+export VITE_FIREBASE_APP_ID=...
 npm run build
 ```
 
-Wait until you see something like `✓ built in …`. If there are red errors, check that the key has no extra spaces or quotes (except in PowerShell where the quotes are required).
+Get Firebase values from [Firebase Console](https://console.firebase.google.com/) → your project → **Project settings** (gear) → **Your apps** → SDK setup. Optional: `VITE_FIREBASE_DATABASE_URL`, `VITE_FIREBASE_MEASUREMENT_ID`.
+
+Wait until you see something like `✓ built in …`. If there are red errors, check that keys have no extra spaces or quotes (except in PowerShell where the quotes are required).
 
 ---
 
@@ -338,20 +356,28 @@ Do this **once** after you’ve deployed at least once (Steps 1–8 above).
      ```
    If your default branch is `master` instead of `main`, use `master` in the push and in the note below.
 
-3. **Add two secrets to your GitHub repo**  
-   - Open your repo on GitHub → **Settings** → **Secrets and variables** → **Actions**.
-   - Click **New repository secret** and add:
-     - **Name:** `FIREBASE_TOKEN`  
-       **Value:** paste the token you copied from step 1.
-     - **Name:** `VITE_OPENROUTER_API_KEY`  
-       **Value:** your OpenRouter API key (the same one you used in Step 6).  
-       (This way the site that GitHub builds and deploys will have the key and AI features will work.)
-   - Save both secrets.
+3. **Add repository secrets (required for auto-deploy)**  
+   Open your repo on GitHub → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**. Add **every** secret below (the workflow needs all of them to build and deploy):
+
+   | Secret name | Value |
+   |-------------|--------|
+   | `FIREBASE_TOKEN` | The long token from `firebase login:ci` (step 1) |
+   | `VITE_OPENROUTER_API_KEY` | Your OpenRouter API key (for AI features) |
+   | `VITE_FIREBASE_API_KEY` | From Firebase Console → Project settings → Your apps |
+   | `VITE_FIREBASE_AUTH_DOMAIN` | e.g. `b2-buddy.firebaseapp.com` |
+   | `VITE_FIREBASE_DATABASE_URL` | Your Realtime Database URL (or leave empty if unused) |
+   | `VITE_FIREBASE_PROJECT_ID` | e.g. `b2-buddy` |
+   | `VITE_FIREBASE_STORAGE_BUCKET` | e.g. `b2-buddy.firebasestorage.app` |
+   | `VITE_FIREBASE_MESSAGING_SENDER_ID` | From Firebase app config |
+   | `VITE_FIREBASE_APP_ID` | From Firebase app config |
+   | `VITE_FIREBASE_MEASUREMENT_ID` | Optional (Analytics); use empty string if you don’t use it |
+
+   You can copy the Firebase values from your local `.env.production` (that file is gitignored and never pushed). Save each secret after adding it.
 
 4. **The workflow is already in the project**  
-   The repo contains a file `.github/workflows/firebase-deploy.yml`. It runs on every **push to the `main` branch** (or `master` if you use that). It will:
+   The repo contains `.github/workflows/firebase-deploy.yml`. It runs on every **push to `main`** (or `master`). It will:
    - Install dependencies
-   - Build the app (using `VITE_OPENROUTER_API_KEY` from secrets)
+   - Build the app (using all `VITE_*` secrets)
    - Deploy to Firebase Hosting
 
 5. **Trigger the first auto-deploy**  
@@ -378,11 +404,14 @@ From now on: **edit code → commit → push to `main`** and in a couple of minu
 - **Build fails**  
   Run `npm install` again, then set `VITE_OPENROUTER_API_KEY` and `npm run build` again. Don’t put a space before or after the `=` when setting the key (Windows: `set VITE_OPENROUTER_API_KEY=sk-or-...`).
 
-- **App is live but AI features don’t work**  
+- **App is live but shows a white screen or “auth/invalid-api-key”**
+  The build was created without Firebase env vars. Set all `VITE_FIREBASE_*` (and `VITE_OPENROUTER_API_KEY`) when running `npm run build`, then redeploy (Step 6 and Step 7). Use `.env.production` or export the vars in the same terminal before building.
+
+- **App is live but AI features don’t work**
   The key is baked in at **build** time. If you change the key or set it wrong, run Step 6 and Step 7 again (set key → build → deploy).
 
-- **GitHub Action “Deploy to Firebase Hosting” fails**  
-  Check that you added both secrets (`FIREBASE_TOKEN` and `VITE_OPENROUTER_API_KEY`) under **Settings → Secrets and variables → Actions**. If the token is wrong, run `firebase login:ci` again and update the `FIREBASE_TOKEN` secret.
+- **GitHub Action “Deploy to Firebase Hosting” fails**
+  Check that you added **all** required secrets under **Settings → Secrets and variables → Actions** (see step 3 above: `FIREBASE_TOKEN`, `VITE_OPENROUTER_API_KEY`, and every `VITE_FIREBASE_*`). If the deploy step fails, the token may be wrong—run `firebase login:ci` again and update the `FIREBASE_TOKEN` secret.
 
 ---
 
