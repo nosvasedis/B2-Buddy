@@ -352,8 +352,21 @@ const SmartAudioPlayer = ({
 
     const useBrowserTTS = src === "browser-tts";
 
+    // #region agent log
+    useEffect(() => {
+        fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:SmartAudioPlayer-props',message:'Dock render',data:{src:src??'null',useBrowserTTS,transcriptLen:transcript?.length??0,isPlaying},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+    }, [src, useBrowserTTS, transcript, isPlaying]);
+    // #endregion
+
     useEffect(() => {
         const audio = audioRef.current;
+        // #region agent log
+        if (useBrowserTTS) {
+            fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:effect-branch',message:'Effect branch',data:{branch:'browser-tts',isPlaying,hasTranscript:!!(transcript?.trim())},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
+        } else if (!audio || !src) {
+            fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:effect-early-return',message:'Effect early return',data:{hasAudio:!!audio,src:src??'null'},timestamp:Date.now(),hypothesisId:'H1'})}).catch(()=>{});
+        }
+        // #endregion
         if (useBrowserTTS) {
             if (isPlaying) {
                 window.speechSynthesis.cancel();
@@ -363,6 +376,9 @@ const SmartAudioPlayer = ({
                 const en = voices.find(v => v.lang.startsWith("en"));
                 if (en) utterance.voice = en;
                 utterance.onend = () => onPlayPause();
+                // #region agent log
+                fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:tts-speak',message:'TTS speak called',data:{voicesCount:voices.length},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
+                // #endregion
                 window.speechSynthesis.speak(utterance);
             } else {
                 window.speechSynthesis.cancel();
@@ -373,9 +389,11 @@ const SmartAudioPlayer = ({
         if (!audio || !src) return;
         if (isPlaying) {
             const playPromise = audio.play();
+            // #region agent log
             if (playPromise !== undefined) {
-                playPromise.then(() => initVisualizer()).catch(e => console.error("Auto-play prevented:", e));
+                playPromise.then(() => { fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:audio-play-ok',message:'audio.play() resolved',data:{},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{}); initVisualizer(); }).catch(e => { fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:audio-play-reject',message:'audio.play() rejected',data:{err:String(e?.message??e)},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{}); console.error("Auto-play prevented:", e); });
             }
+            // #endregion
         } else {
             audio.pause();
             if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
@@ -477,7 +495,12 @@ const SmartAudioPlayer = ({
                 <div className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/90 border border-cyan-200 dark:border-cyan-900 shadow-[0_8px_32px_rgba(6,182,212,0.3)] rounded-3xl p-3 md:p-4 flex items-center gap-3 md:gap-4 relative overflow-hidden transition-all hover:scale-[1.01]">
 
                     <button
-                        onClick={onPlayPause}
+                        onClick={() => {
+                            // #region agent log
+                            fetch('http://127.0.0.1:7794/ingest/17e55a50-b873-46d7-b51c-70cd6b24c684',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'a63de1'},body:JSON.stringify({sessionId:'a63de1',location:'ListeningLounge.tsx:play-click',message:'Play button clicked',data:{wasPlaying:isPlaying},timestamp:Date.now(),hypothesisId:'H3'})}).catch(()=>{});
+                            // #endregion
+                            onPlayPause();
+                        }}
                         className={`w-12 h-12 md:w-14 md:h-14 rounded-2xl flex items-center justify-center text-2xl shadow-lg transition-all transform active:scale-90 shrink-0 border-2 ${isPlaying ? 'bg-cyan-500 border-cyan-400 text-white shadow-cyan-500/40' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-900 dark:text-white'}`}
                     >
                         {isPlaying ? '⏸' : '▶'}
@@ -614,6 +637,12 @@ const ListeningLounge: React.FC<ListeningLoungeProps> = ({ stats, onUpdateStats 
             const parts = ex.audioScriptParts ?? (ex.script ? [ex.script] : []);
             for (let i = 0; i < parts.length; i++) {
                 await generateStepAudio(i, ex, sessionId);
+            }
+            if (parts.length === 0) {
+                setStepAudioUrls(prev => ({ ...prev, 0: "browser-tts" }));
+            }
+            if (mode === 'PART3_MATCHING') {
+                setAudioUrl("browser-tts");
             }
         } else {
             setGenerationStep('recording');
