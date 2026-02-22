@@ -198,3 +198,12 @@ export interface DrillQuestion {
   correctAnswer: string;
   options?: string[];
 }
+
+/** Single GVR item for Michigan ECCE mock exam (Grammar, Vocabulary, Reading). */
+export interface ECCEQuestion {
+  id: number;
+  type: 'GRAMMAR' | 'VOCABULARY' | 'READING';
+  question: string;
+  options: string[];
+  correctAnswer: string;
+}

@@ -10,6 +10,7 @@ import {
     Exercise,
     UserStats,
     DrillQuestion,
+    ECCEQuestion,
     SpeakingScore
 } from "../types";
 import { PART2_PHOTO_PAIRS, PART3_MIND_MAPS } from "../data/speakingPrompts";
@@ -231,6 +232,47 @@ export const generateDrillExercises = async (type: string): Promise<DrillQuestio
     const prompt = `10 Drills for ${type}. Return JSON array.`;
     const res = await callModel(prompt, TEXT_MODEL, "B2 Drill Sergeant persona", true);
     return JSON.parse(res || "[]");
+};
+
+const ECCE_EXAM_SYSTEM = `You are an official Michigan ECCE (Examination for the Certificate of Proficiency in English) item writer.
+Generate B2-level multiple-choice questions for the GVR (Grammar, Vocabulary, Reading) section.
+- Grammar: tenses, conditionals, modals, relative clauses, passives, linkers.
+- Vocabulary: collocations, phrasal verbs, word choice, idioms at B2.
+- Reading: short context (1-2 sentences) then choose best completion or meaning.
+Each question must have exactly 4 options. Return ONLY a valid JSON array, no markdown or explanation.`;
+
+/** Generates one batch of ECCE GVR questions (e.g. 20). Batch index used to vary topics and avoid repetition. */
+export const generateECCEExamBatch = async (batchIndex: number, batchSize: number = 20): Promise<ECCEQuestion[]> => {
+    const startId = batchIndex * batchSize + 1;
+    const prompt = `Generate exactly ${batchSize} Michigan ECCE GVR questions for this batch (IDs ${startId} to ${startId + batchSize - 1}).
+Mix: about 40% GRAMMAR, 40% VOCABULARY, 20% READING. Vary topics (work, travel, environment, education, technology, health, etc.).
+Return a JSON array of objects. Each object must have:
+- "id": number (${startId} to ${startId + batchSize - 1})
+- "type": "GRAMMAR" | "VOCABULARY" | "READING"
+- "question": string (clear stem; use ________ for gap if completion)
+- "options": string array of exactly 4 options
+- "correctAnswer": string (exactly one of the options)
+No duplicate questions. Make distractors plausible.`;
+    const res = await callModel(prompt, TEXT_MODEL, ECCE_EXAM_SYSTEM, true);
+    const raw = JSON.parse(res || "[]");
+    return Array.isArray(raw) ? raw.map((q: any) => ({
+        id: Number(q.id) || startId + raw.indexOf(q),
+        type: ['GRAMMAR', 'VOCABULARY', 'READING'].includes(q.type) ? q.type : 'GRAMMAR',
+        question: String(q.question || '').trim(),
+        options: Array.isArray(q.options) ? q.options.map((o: any) => String(o)) : [],
+        correctAnswer: String(q.correctAnswer || '').trim()
+    })).filter((q: ECCEQuestion) => q.question && q.options.length >= 2) : [];
+};
+
+/** Generates a full ECCE mock exam (e.g. 100 questions) in batches to get diverse, non-repeating items. */
+export const generateECCEExamQuestions = async (total: number = 100, batchSize: number = 20): Promise<ECCEQuestion[]> => {
+    const batches = Math.ceil(total / batchSize);
+    const all: ECCEQuestion[] = [];
+    for (let i = 0; i < batches; i++) {
+        const batch = await generateECCEExamBatch(i, batchSize);
+        all.push(...batch);
+    }
+    return all.slice(0, total);
 };
 
 export const generateModelEssay = async (type: string): Promise<string> => {
