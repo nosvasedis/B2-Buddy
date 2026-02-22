@@ -146,11 +146,8 @@ You only need a free OpenRouter API key; no paid model usage is required.
 
 2. **Environment**
    - Copy [.env.example](.env.example) to `.env.local`.
-   - Set your OpenRouter API key:
-     ```env
-     VITE_OPENROUTER_API_KEY=your_key_here
-     ```
-   - Get a key at [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys).
+   - Set **OpenRouter**: get a key at [OpenRouter → Settings → Keys](https://openrouter.ai/settings/keys) and set `VITE_OPENROUTER_API_KEY=your_key_here`.
+   - Set **Firebase**: in [Firebase Console](https://console.firebase.google.com/) → your project → Project settings (gear) → Your apps → copy the `firebaseConfig` values into your `.env.local` as the `VITE_FIREBASE_*` variables (see `.env.example`). To avoid "publicly accessible API key" warnings, [restrict the API key](https://console.cloud.google.com/apis/credentials) to your site (e.g. `https://b2-buddy.web.app/*`, `http://localhost:*`).
 
 3. **Run**
    ```bash

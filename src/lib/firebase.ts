@@ -1,17 +1,16 @@
-
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDYap6A4g_mq8mS__w-VI1k-L4P4vuyTDU",
-  authDomain: "b2-buddy.firebaseapp.com",
-  databaseURL: "https://b2-buddy-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "b2-buddy",
-  storageBucket: "b2-buddy.firebasestorage.app",
-  messagingSenderId: "868224727536",
-  appId: "1:868224727536:web:5622fa89716191210c4535",
-  measurementId: "G-TJ64RSGSRP"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  databaseURL: import.meta.env.VITE_FIREBASE_DATABASE_URL,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 const app = initializeApp(firebaseConfig);
